@@ -13,11 +13,6 @@ An advanced system for extracting, categorizing, and analyzing negative issues f
 
 ## System Requirements
 
-### Hardware
-- **RAM**: Minimum 8GB, recommended 16GB+ for local LLM inference
-- **GPU**: Optional but recommended - NVIDIA GPU with 6GB+ VRAM for faster processing
-- **Storage**: 10GB+ free space for model downloads and data
-
 ### Software
 - Python 3.8+
 - CUDA 11.8+ (optional, for GPU acceleration)
@@ -221,31 +216,3 @@ print(f"GPU count: {torch.cuda.device_count()}")
 - English language reviews only
 - Requires significant computational resources for local LLM
 - Processing speed depends on hardware capabilities
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality  
-4. Submit a pull request
-
-## License
-
-[Specify your license here]
-
-## Acknowledgments
-
-- Hugging Face Transformers for model infrastructure
-- Google Play Scraper for review data access
-- Meta AI for Llama model architecture
-
-## Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review system requirements
-3. Open an issue with detailed error logs
-
----
-
-**Note**: This system is designed for research and business intelligence purposes. Ensure compliance with Google Play Store terms of service and applicable data protection regulations.
