@@ -148,7 +148,7 @@ class LlamaModel:
 
         return response
 
-  @dataclass
+@dataclass
 class Review:
     """Data class for storing review information"""
     content: str
@@ -208,7 +208,7 @@ class ReviewScraper:
 
         return all_reviews
 
-  class TopicExtractor:
+class TopicExtractor:
     """AI Agent for extracting negative issues from reviews using Llama 3.3"""
 
     def __init__(self):
@@ -284,20 +284,68 @@ class ReviewScraper:
         return not any(word in topic_lower for word in positive_keywords)
 
     def _parse_llm_response(self, response: str) -> dict:
-        """Parse LLM response to extract JSON"""
+        """Improved JSON parsing with better error handling"""
         try:
-            # Try to extract JSON from the response
-            start_idx = response.find('{')
-            end_idx = response.rfind('}') + 1
-            if start_idx != -1 and end_idx > start_idx:
-                json_str = response[start_idx:end_idx]
-                return json.loads(json_str)
+            # First try to find JSON block
+            json_patterns = [
+                r'\{[^{}]*\}',  # Simple JSON object
+                r'\{.*?\}(?=\s*$)',  # JSON at the end
+                r'```json\s*(.*?)\s*```',  # JSON in code block
+                r'```\s*(.*?)\s*```',  # General code block
+            ]
+            
+            for pattern in json_patterns:
+                matches = re.findall(pattern, response, re.DOTALL)
+                if matches:
+                    for match in matches:
+                        try:
+                            # Clean the match
+                            json_str = match.strip()
+                            if json_str.startswith('```'):
+                                json_str = json_str.replace('```json', '').replace('```', '').strip()
+                            
+                            # Try to parse
+                            parsed = json.loads(json_str)
+                            if isinstance(parsed, dict):
+                                return parsed
+                        except json.JSONDecodeError:
+                            continue
+            
+            # Fallback: try to extract key-value pairs manually
+            result = {}
+            lines = response.split('\n')
+            current_review = None
+            
+            for line in lines:
+                # Look for review numbers
+                if re.match(r'^\s*"?\d+"?\s*:', line):
+                    parts = line.split(':', 1)
+                    if len(parts) == 2:
+                        review_num = parts[0].strip().strip('"')
+                        content = parts[1].strip()
+                        
+                        # Try to parse the content as a list
+                        if content.startswith('[') and content.endswith(']'):
+                            try:
+                                issues = json.loads(content)
+                                result[review_num] = issues
+                            except:
+                                # Extract issues manually
+                                issues = re.findall(r'"([^"]+)"', content)
+                                if issues:
+                                    result[review_num] = issues
+            
+            if result:
+                return result
+            
+            logger.debug(f"Could not parse response: {response[:200]}")
             return {}
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse LLM response as JSON")
+            
+        except Exception as e:
+            logger.debug(f"Failed to parse LLM response: {e}")
             return {}
 
-      class LLMTopicConsolidator:
+class LLMTopicConsolidator:
     """LLM-based agent for consolidating similar negative issues into categories"""
 
     def __init__(self):
@@ -316,30 +364,32 @@ class ReviewScraper:
         topics_list = [topic for topic, _ in sorted_topics[:100]]  # Process top 100
 
         prompt = f"""
-        Group the following customer complaints and issues into logical problem categories.
-        These are negative feedback extracted from app reviews.
+        Group these customer complaints into DISTINCT, NON-OVERLAPPING problem categories.
+        
+        Issues to categorize (with frequencies):
+        {json.dumps({t: topics_with_counts[t] for t in topics_list[:30]}, indent=2)}
 
-        Issues to categorize:
-        {json.dumps(topics_list, indent=2)}
+        STRICT RULES:
+        1. Create 5-8 MAIN problem categories maximum
+        2. Categories must be MUTUALLY EXCLUSIVE - no overlap allowed
+        3. Be specific: Instead of "Delivery issues", use either "Late deliveries" OR "Wrong/missing items" OR "Delivery partner behavior"
+        4. Group by the ROOT CAUSE of the problem, not symptoms
+        5. Every issue maps to exactly ONE category
+        
+        Good categories examples:
+        - "Payment processing failures" (for payment errors, failed transactions)
+        - "Order accuracy problems" (for wrong items, missing items)
+        - "App performance issues" (for crashes, freezing, slow loading)
+        - "Late deliveries" (for delays, long wait times)
+        - "Food quality complaints" (for cold, stale, poor quality food)
+        
+        Bad categories (too broad/overlapping):
+        - "Delivery issues" (too vague)
+        - "App problems" (too broad)
+        - "Service issues" (overlaps with everything)
 
-        RULES:
-        1. Group similar problems together (e.g., "delivery was 2 hours late", "delayed delivery", "order took forever" → "Delivery delays")
-        2. Create clear, problem-focused category names
-        3. Each issue must map to exactly ONE category
-        4. Keep categories specific and actionable for fixing problems
-        5. Category names should clearly indicate the problem area
-
-        Return ONLY a JSON object mapping each issue to its problem category.
-
-        Example output:
-        {{
-            "delivery was 2 hours late": "Delivery delays",
-            "order took forever": "Delivery delays",
-            "delivery partner was rude": "Delivery partner behavior issues",
-            "driver didn't follow instructions": "Delivery partner behavior issues",
-            "app crashes during payment": "Payment system failures",
-            "payment failed but money deducted": "Payment system failures"
-        }}
+        Return ONLY a JSON mapping each issue to ONE specific category.
+        Format: {{"issue1": "category1", "issue2": "category1", "issue3": "category2"}}
         """
 
         try:
@@ -390,7 +440,7 @@ class ReviewScraper:
             logger.warning("Failed to parse LLM response as JSON")
             return {}
 
-      class ClusteringTopicConsolidator:
+class ClusteringTopicConsolidator:
     """Clustering-based consolidator using embeddings and unsupervised learning"""
 
     def __init__(self, method: str = "hierarchical", threshold: float = 0.3):
@@ -468,7 +518,7 @@ class ReviewScraper:
 
         return clustering.fit_predict(embeddings)
 
-      class HybridTopicConsolidator:
+class HybridTopicConsolidator:
     """Hybrid approach: Clustering + LLM refinement"""
 
     def __init__(self):
@@ -498,7 +548,7 @@ class ReviewScraper:
 
         return final_mappings
 
-      class TrendAnalyzer:
+class TrendAnalyzer:
     """Agent for analyzing trends and generating reports with visualizations"""
 
     def __init__(self):
@@ -895,7 +945,7 @@ class ReviewScraper:
 
         return fig
 
-      class ReviewAnalysisOrchestrator:
+class ReviewAnalysisOrchestrator:
     """Main orchestrator for the review analysis pipeline"""
 
     def __init__(self, app_id: str, consolidation_method: str = "hybrid"):
@@ -1039,7 +1089,7 @@ class ReviewScraper:
             "emerging_issues": self.trend_analyzer.get_emerging_topics(end_date)[:5]
         }
 
-  async def main():
+async def main():
     """Main execution function"""
 
     # Configuration
